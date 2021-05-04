@@ -296,47 +296,57 @@ class MediaTransport():
         else:
             print(message.type, message.src)
 
+def _initPipeline(self):
+    global args
+
+    self.pipeline = Gst.Pipeline.new("player")
+
+    gst_bus = self.pipeline.get_bus()
+    gst_bus.add_signal_watch()
+    gst_bus.connect("message", self._gst_on_message)
+
+    source = Gst.ElementFactory.make("avdtpsrc", "bluetooth-source")
+    jitterbuffer = Gst.ElementFactory.make("rtpjitterbuffer", "jitterbuffer")
+    jitterbuffer.set_property("latency", args.buff_len)
+    jitterbuffer.set_property("drop-on-latency", "true")
+    depay = self.depay
+    parse = self.parse
+    decoder = self.decoder
+    converter = Gst.ElementFactory.make("audioconvert", "converter")
+    sink = Gst.ElementFactory.make("alsasink", "alsa-output")
+
+    self.pipeline.add(source)
+    self.pipeline.add(jitterbuffer)
+    self.pipeline.add(depay)
+    if parse:
+        self.pipeline.add(parse)
+    self.pipeline.add(decoder)
+    self.pipeline.add(converter)
+    self.pipeline.add(sink)
+
+    print(source.link(jitterbuffer))
+    print(jitterbuffer.link(depay))
+    if parse:
+        print(depay.link(parse))
+        print(parse.link(decoder))
+        print(decoder.link(converter))
+    else:
+        print(depay.link(decoder))
+    print(converter.link(sink))
+
+    source.set_property("transport", self.path)
+    if args.alsadev:
+        sink.set_property("device", args.alsadev)
+
 class MediaTransportSBC(MediaTransport):
 
 
     def initPipeline(self):
+        self.depay = Gst.ElementFactory.make("rtpsbcdepay", "depayloader")
+        self.parse = Gst.ElementFactory.make("sbcparse", "parser")
+        self.decoder = Gst.ElementFactory.make("sbcdec", "decoder")
 
-        global args
-
-        self.pipeline = Gst.Pipeline.new("player")
-
-        gst_bus = self.pipeline.get_bus()
-        gst_bus.add_signal_watch()
-        gst_bus.connect("message", self._gst_on_message)
-
-        source = Gst.ElementFactory.make("avdtpsrc", "bluetooth-source")
-        jitterbuffer = Gst.ElementFactory.make("rtpjitterbuffer", "jitterbuffer")
-        jitterbuffer.set_property("latency", args.buff_len)
-        jitterbuffer.set_property("drop-on-latency", "true")
-        depay = Gst.ElementFactory.make("rtpsbcdepay", "depayloader")
-        parse = Gst.ElementFactory.make("sbcparse", "parser")
-        decoder = Gst.ElementFactory.make("sbcdec", "decoder")
-        converter = Gst.ElementFactory.make("audioconvert", "converter")
-        sink = Gst.ElementFactory.make("alsasink", "alsa-output")
-
-        self.pipeline.add(source)
-        self.pipeline.add(jitterbuffer)
-        self.pipeline.add(depay)
-        self.pipeline.add(parse)
-        self.pipeline.add(decoder)
-        self.pipeline.add(converter)
-        self.pipeline.add(sink)
-
-        print(source.link(jitterbuffer))
-        print(jitterbuffer.link(depay))
-        print(depay.link(parse))
-        print(parse.link(decoder))
-        print(decoder.link(converter))
-        print(converter.link(sink))
-
-        source.set_property("transport", self.path)
-        if args.alsadev:
-            sink.set_property("device", args.alsadev)
+        _initPipeline(self)
 
         print("Created new SBC pipeline")
 
@@ -345,39 +355,11 @@ class MediaTransportSBC(MediaTransport):
 class MediaTransportAAC(MediaTransport):
 
     def initPipeline(self):
-        global args
+        self.depay = Gst.ElementFactory.make("rtpmp4adepay", "depayloader")
+        self.parse = None
+        self.decoder = Gst.ElementFactory.make("faad", "decoder")
 
-        self.pipeline = Gst.Pipeline.new("player")
-
-        gst_bus = self.pipeline.get_bus()
-        gst_bus.add_signal_watch()
-        gst_bus.connect("message", self._gst_on_message)
-
-        source = Gst.ElementFactory.make("avdtpsrc", "bluetooth-source")
-        jitterbuffer = Gst.ElementFactory.make("rtpjitterbuffer", "jitterbuffer")
-        jitterbuffer.set_property("latency", args.buff_len)
-        jitterbuffer.set_property("drop-on-latency", "true")
-        depay = Gst.ElementFactory.make("rtpmp4adepay", "depayloader")
-        decoder = Gst.ElementFactory.make("faad", "decoder")
-        converter = Gst.ElementFactory.make("audioconvert", "converter")
-        sink = Gst.ElementFactory.make("alsasink", "alsa-output")
-
-        self.pipeline.add(source)
-        self.pipeline.add(jitterbuffer)
-        self.pipeline.add(depay)
-        self.pipeline.add(decoder)
-        self.pipeline.add(converter)
-        self.pipeline.add(sink)
-
-        print(source.link(jitterbuffer))
-        print(jitterbuffer.link(depay))
-        print(depay.link(decoder))
-        print(decoder.link(converter))
-        print(converter.link(sink))
-
-        source.set_property("transport", self.path)
-        if args.alsadev:
-            sink.set_property("device", args.alsadev)
+        _initPipeline(self)
 
         print("Created new AAC pipeline")
 
