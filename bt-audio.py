@@ -11,11 +11,12 @@ from gi.repository import GObject, Gst
 
 import argparse
 
-argparser = argparse.ArgumentParser(description='Send bluetooth audio to alsa card')
+argparser = argparse.ArgumentParser(description='Send bluetooth audio to alsa card or pulseaudio')
 argparser.add_argument('--alsa-device', '-d', dest='alsadev', help='Alsa device')
 argparser.add_argument('--adapter', '-a', dest='adapter', help='Bluetooth adapter', default='hci0')
 argparser.add_argument('--buffer-length', '-b', dest='buff_len', help='Length of the jitter buffer', default=50)
 argparser.add_argument('--aac', '-A', dest='aac_enabled', help='Enable AAC codec support', default=False, action='store_true')
+argparser.add_argument('--pulse', '-p', dest='pulse', help='Send audio to pulseaudio', default=False, action='store_true')
 
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
 
@@ -313,7 +314,10 @@ def _initPipeline(self):
     parse = self.parse
     decoder = self.decoder
     converter = Gst.ElementFactory.make("audioconvert", "converter")
-    sink = Gst.ElementFactory.make("alsasink", "alsa-output")
+    if args.pulse:
+        sink = Gst.ElementFactory.make("pulsesink", None)
+    else:
+        sink = Gst.ElementFactory.make("alsasink", "alsa-output")
 
     self.pipeline.add(source)
     self.pipeline.add(jitterbuffer)
@@ -335,7 +339,7 @@ def _initPipeline(self):
     print(converter.link(sink))
 
     source.set_property("transport", self.path)
-    if args.alsadev:
+    if args.pulse == False and args.alsadev:
         sink.set_property("device", args.alsadev)
 
 class MediaTransportSBC(MediaTransport):
